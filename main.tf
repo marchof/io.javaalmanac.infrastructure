@@ -213,6 +213,30 @@ resource "aws_alb_target_group" "java13" {
   }
 }
 
+resource "aws_lb_listener_rule" "java14" {
+  listener_arn = aws_alb_listener.sandboxes.arn
+  action {
+    type             = "forward"
+    target_group_arn = aws_alb_target_group.java14.id
+  }
+  condition {
+    host_header {
+      values = ["java14.sandbox.javaalmanac.io"]
+    }
+  }
+}
+
+resource "aws_alb_target_group" "java14" {
+  name        = "javaalmanac-sandbox-java14"
+  port        = 8014
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+  health_check {
+    path = "/health"
+  }
+}
+
 ################################################################################
 # CLUSTER AND TASKS
 ################################################################################
@@ -292,6 +316,24 @@ resource "aws_ecs_task_definition" "javasandboxes" {
         "awslogs-stream-prefix": "java13"
       }
     }
+  },
+  {
+    "name": "java14",
+    "image": "${aws_ecr_repository.repository.repository_url}:latest-14",
+    "environment" : [
+      { "name" : "PORT", "value" : "8014" }
+    ],
+    "portMappings": [
+      { "containerPort": 8014, "hostPort": 8014 }
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${aws_cloudwatch_log_group.javasandboxes.name}",
+        "awslogs-region": "${data.aws_region.current.name}",
+        "awslogs-stream-prefix": "java14"
+      }
+    }
   }
 ]
 DEFINITION
@@ -326,6 +368,12 @@ resource "aws_ecs_service" "main" {
     target_group_arn = aws_alb_target_group.java13.id
     container_name   = "java13"
     container_port   = "8013"
+  }
+
+  load_balancer {
+    target_group_arn = aws_alb_target_group.java14.id
+    container_name   = "java14"
+    container_port   = "8014"
   }
 
   depends_on = [
